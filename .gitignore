@@ -1,0 +1,72 @@
+# --- PYTHON ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- ENVIRONNEMENTS VIRTUELS ---
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# --- AWS CDK ---
+# C'est le gros dossier généré qui contient le CloudFormation, ne JAMAIS commiter ça
+cdk.out/
+.cdk.staging/
+# Le contexte peut contenir des IDs de VPC ou d'Account, mieux vaut l'ignorer
+cdk.context.json
+
+# --- JEUX & ROMS (TRES IMPORTANT) ---
+# On ne veut surtout pas envoyer de fichiers sous copyright sur GitHub !
+*.nes
+*.sfc
+*.smc
+*.iso
+*.bin
+*.cue
+*.gba
+*.gb
+*.gbc
+*.md
+roms/
+data/
+
+# --- IDE & OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- NODEJS (Si jamais tu as des modules locaux) ---
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# --- FICHIERS TEMPORAIRES DU PROJET ---
+lambda_backend/userdata.txt
+lambda_backend/*.zip
+website/config.js

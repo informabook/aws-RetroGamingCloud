@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RetroCloud Lobby</title>
+    <style>
+        /* --- DESIGN MODERNE --- */
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: radial-gradient(circle at center, #1a1a2e 0%, #16213e 100%); 
+            color: #fff; margin: 0; height: 100vh; overflow: hidden; 
+            display: flex; flex-direction: column;
+        }
+
+        /* HEADER */
+        #header { 
+            padding: 20px 40px; background: rgba(0,0,0,0.3); 
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        h1 { margin: 0; color: #00d4ff; text-transform: uppercase; letter-spacing: 2px; font-size: 1.5rem; }
+        
+        /* CATALOGUE */
+        #catalog { 
+            flex: 1; padding: 40px; display: flex; flex-wrap: wrap; gap: 20px; 
+            overflow-y: auto; align-content: flex-start; justify-content: center;
+        }
+        
+        .card {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px; width: 160px; padding: 20px; text-align: center;
+            cursor: pointer; transition: all 0.3s ease; backdrop-filter: blur(10px);
+        }
+        .card:hover { 
+            transform: translateY(-5px); background: rgba(255,255,255,0.1); 
+            border-color: #00d4ff; box-shadow: 0 0 20px rgba(0, 212, 255, 0.3);
+        }
+        .icon { font-size: 3rem; margin-bottom: 15px; display: block; }
+        .name { font-weight: 600; font-size: 0.9rem; color: #ddd; }
+
+        /* ECRAN DE CHARGEMENT (LOBBY) */
+        #loading-screen {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 100;
+            flex-direction: column; justify-content: center; align-items: center;
+        }
+        .spinner {
+            width: 60px; height: 60px; border: 6px solid rgba(255,255,255,0.1);
+            border-top: 6px solid #00d4ff; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 30px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        #status-msg { font-size: 1.5rem; margin-bottom: 10px; font-weight: 300; }
+        #sub-status { color: #888; font-size: 0.9rem; margin-bottom: 40px; }
+
+        /* BOUTON D'ACTION */
+        #action-area { display: none; text-align: center; animation: fadeIn 0.5s; }
+        .btn-play {
+            background: linear-gradient(45deg, #00d4ff, #0051ff);
+            border: none; padding: 15px 50px; font-size: 1.5rem; font-weight: bold;
+            color: white; border-radius: 50px; cursor: pointer;
+            box-shadow: 0 0 30px rgba(0, 81, 255, 0.5);
+            transition: transform 0.2s; text-decoration: none; display: inline-block;
+        }
+        .btn-play:hover { transform: scale(1.05); box-shadow: 0 0 50px rgba(0, 81, 255, 0.8); }
+        
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h1>👾 Retro Cloud</h1>
+        <div style="font-size: 0.9rem; color: #666;">V7 Secure</div>
+    </div>
+
+    <div id="catalog">Chargement...</div>
+
+    <div id="loading-screen">
+        <div class="spinner" id="loader"></div>
+        <div id="status-msg">Préparation de votre session...</div>
+        <div id="sub-status">Allocation d'un serveur haute performance</div>
+        
+        <div id="action-area">
+            <div style="margin-bottom: 20px; font-size: 1.2rem; color: #4caf50;">✅ Votre jeu est prêt !</div>
+            <a id="play-link" href="#" target="_blank" class="btn-play" onclick="closeLobby()">JOUER MAINTENANT</a>
+            <div style="margin-top: 15px; color: #666; font-size: 0.8rem;">(S'ouvrira dans un nouvel onglet sécurisé)</div>
+        </div>
+        
+        <button onclick="cancelGame()" style="margin-top: 50px; background:none; border:1px solid #444; color:#666; padding:8px 20px; cursor:pointer; border-radius:20px;">Annuler</button>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const API_URL = "https://y3mjgplb68.execute-api.eu-west-3.amazonaws.com/prod/"; // <--- METS TON URL API ICI (sans espace)
+        // ---------------------
+
+        let pingInterval = null;
+
+        window.onload = () => {
+            const saved = localStorage.getItem('retro_session');
+            if(saved) { 
+                try { 
+                    const s = JSON.parse(saved); 
+                    // Si une session existe, on retourne directement dans le lobby d'attente
+                    startLobby(s.url, s.name); 
+                } catch(e) { loadCatalog(''); } 
+            } else {
+                loadCatalog('');
+            }
+        };
+
+        async function loadCatalog(path) {
+            const c = document.getElementById('catalog');
+            c.innerHTML = '<div style="color:#666">Récupération des jeux...</div>';
+            try {
+                const url = path ? `${API_URL}?path=${encodeURIComponent(path)}` : API_URL;
+                const res = await fetch(url);
+                const items = await res.json();
+                c.innerHTML = '';
+                
+                if(path) c.innerHTML += `<div class="card" onclick="goUp('${path}')"><span class="icon">↩️</span><div class="name">Retour</div></div>`;
+                
+                items.forEach(i => {
+                    const isDir = i.type === 'folder';
+                    const icon = isDir ? '📁' : '📼';
+                    const click = isDir ? `loadCatalog('${i.path}')` : `launch('${i.path}')`;
+                    c.innerHTML += `<div class="card" onclick="${click}"><span class="icon">${icon}</span><div class="name">${i.name}</div></div>`;
+                });
+            } catch(e) { c.innerHTML = `<div style="color:red">Erreur API: ${e.message}</div>`; }
+        }
+
+        function goUp(path) { 
+            const p = path.replace(/\/$/, '').split('/'); 
+            p.pop(); 
+            loadCatalog(p.join('/') + '/'); 
+        }
+
+        async function launch(romKey) {
+            // Afficher l'ecran de chargement immediatement
+            document.getElementById('loading-screen').style.display = 'flex';
+            updateStatus("Contact du Cloud...", "Négociation des ressources");
+            
+            try {
+                const res = await fetch(API_URL, { method: 'POST', body: JSON.stringify({ rom: romKey }) });
+                const data = await res.json();
+                
+                if(data.error) throw new Error(data.error);
+                if(!data.url) throw new Error("Pas d'URL reçue");
+                
+                // Sauvegarde et lancement du ping
+                localStorage.setItem('retro_session', JSON.stringify({url: data.url, name: romKey}));
+                startLobby(data.url, romKey);
+
+            } catch(e) {
+                alert(e.message);
+                cancelGame();
+            }
+        }
+
+        function startLobby(url, name) {
+            document.getElementById('loading-screen').style.display = 'flex';
+            document.getElementById('action-area').style.display = 'none';
+            document.getElementById('loader').style.display = 'block';
+            
+            updateStatus("Démarrage du Serveur", "Cela prend environ 60 secondes...");
+            
+            // Boucle de Ping pour savoir quand Caddy + KasmVNC sont prets
+            if(pingInterval) clearInterval(pingInterval);
+            let attempts = 0;
+            
+            pingInterval = setInterval(() => {
+                attempts++;
+                
+                // On ping le favicon pour eviter les erreurs CORS
+                const img = new Image();
+                img.onload = () => {
+                    // C'EST PRET !
+                    clearInterval(pingInterval);
+                    showReadyButton(url);
+                };
+                img.onerror = () => {
+                    // Pas encore pret
+                    if(attempts > 5) updateStatus("Installation du Jeu...", "Configuration graphique en cours");
+                    if(attempts > 15) updateStatus("Génération Certificat SSL...", "Sécurisation de la connexion");
+                    if(attempts > 30) updateStatus("Presque prêt...", "Finalisation du démarrage");
+                };
+                img.src = `${url}/favicon.ico?t=${Date.now()}`;
+                
+            }, 3000);
+        }
+
+        function showReadyButton(url) {
+            document.getElementById('loader').style.display = 'none';
+            document.getElementById('status-msg').style.display = 'none';
+            document.getElementById('sub-status').style.display = 'none';
+            
+            const area = document.getElementById('action-area');
+            area.style.display = 'block';
+            
+            const btn = document.getElementById('play-link');
+            btn.href = url;
+        }
+
+        function updateStatus(main, sub) {
+            document.getElementById('status-msg').innerText = main;
+            document.getElementById('sub-status').innerText = sub;
+        }
+
+        function closeLobby() {
+            // On laisse l'utilisateur partir jouer, on reset l'interface locale
+            // On peut garder la session ou l'effacer selon preference
+            // Ici on garde pour qu'il puisse revenir
+            document.getElementById('loading-screen').style.display = 'none';
+            loadCatalog('');
+        }
+
+        function cancelGame() {
+            localStorage.removeItem('retro_session');
+            if(pingInterval) clearInterval(pingInterval);
+            document.getElementById('loading-screen').style.display = 'none';
+            document.getElementById('action-area').style.display = 'none';
+            loadCatalog('');
+        }
+    </script>
+</body>
+</html>
